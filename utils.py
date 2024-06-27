@@ -3,8 +3,8 @@ import datetime
 import global_vars
 from slack_sdk.web.async_client import AsyncWebClient
 
-SLACK_TOKEN = "xoxb-6654398856967-6963442133638-BLo1OgQg3OyanpX55LyRT86u"
-CHANNEL_ID = "C06UJ2GV0E6"
+SLACK_TOKEN = None # put slack token here
+CHANNEL_ID = None #put channel id here
 slack_client = AsyncWebClient(token=SLACK_TOKEN)
 
 async def log_interest_rates_usdm(leverage:float, notional_size:float):
@@ -25,32 +25,36 @@ async def log_interest_rates_usdm(leverage:float, notional_size:float):
                 continue
             base_cur, quote_cur = global_vars.spot_symbol_to_currencies[spot_eq]
             print(futures_symb)
-            future_price = (get_mean_price_at_volume
+            future_bid_price = (get_mean_price_at_volume
                             (global_vars.usdm_futures_symbol_to_bid_orderbook[futures_symb], notional_size))
-            spot_price = (get_mean_price_at_volume
+            future_ask_price = (get_mean_price_at_volume
+                            (global_vars.usdm_futures_symbol_to_ask_orderbook[futures_symb], notional_size))
+            spot_ask_price = (get_mean_price_at_volume
                           (global_vars.spot_symbol_to_ask_orderbook[spot_eq], notional_size))
+            spot_bid_price = (get_mean_price_at_volume
+                            (global_vars.spot_symbol_to_bid_orderbook[spot_eq], notional_size))
             # get price datas end
 
             print("leverage", leverage)
-            print("spot price", spot_price)
-            print("future price", future_price)
+            print("spot price", spot_ask_price)
+            print("future price", future_bid_price)
 
             #calc time begin
             date_abbr = futures_symb.split("_")[1]
             year = int(date_abbr[:2]) + 2000
             month = int(date_abbr[2:4])
             day = int(date_abbr[4:])
-            futuretime = datetime.datetime(year, month, day)
-            now = datetime.datetime.now()
-            time_diff =abs( futuretime - now ).days
+            futuretime = datetime.datetime(year, month, day).timestamp()*1000
+            now = datetime.datetime.now().timestamp()*1000
+            time_diff = (futuretime - now)/86400000
             #calc time end
 
             print("end time", futuretime)
             print("time difference", time_diff)
 
             #calc interest here
-            numerator = (1-1/leverage)*(future_price - spot_price)
-            denominator = spot_price
+            numerator = (1-1/leverage)*(future_bid_price - spot_ask_price)
+            denominator = spot_ask_price
             coefficient = 365 / time_diff
             interest_rate = numerator / denominator * coefficient
             #calc interest here
@@ -58,12 +62,36 @@ async def log_interest_rates_usdm(leverage:float, notional_size:float):
             print("numerator:", numerator)
             print("denominator:", denominator)
             print("coefficient:", coefficient)
-
             text = f"{futures_symb} @{notional_size} {quote_cur} interest rate: {(interest_rate)*100}"
+            if(interest_rate > 0.08):
+                await slack_client.chat_postMessage(channel=CHANNEL_ID,
+                                                text="leverage " + str(leverage) +
+                                                     "\nspot price " + str(spot_ask_price) +
+                                                     "\nfuture price " + str(future_bid_price) +
+                                                     "\ndays till expiration " + str(time_diff) +
+                                                     "\n" + text +
+                                                     "\n-----------------------------------------")
             print(text)
             print("-----------------------------")
-            await slack_client.chat_postMessage(channel=CHANNEL_ID, text=text)
 
+
+            #await slack_client.chat_postMessage(channel=CHANNEL_ID, text=text)
+            # calc interest here
+            numerator = (1 - 1 / leverage) * (future_ask_price - spot_bid_price)
+            denominator = spot_bid_price
+            coefficient = 365 / time_diff
+            interest_rate = numerator / denominator * coefficient
+            # calc interest here
+
+            text = f"{futures_symb} @{notional_size} {quote_cur} interest rate: {(interest_rate) * 100}"
+            if (interest_rate < 0.05):
+                await slack_client.chat_postMessage(channel=CHANNEL_ID,
+                                                    text="leverage " + str(leverage) +
+                                                         "\nspot price " + str(spot_ask_price) +
+                                                         "\nfuture price " + str(future_bid_price) +
+                                                         "\ndays till expiration " + str(time_diff) +
+                                                         "\n" + text +
+                                                         "\n-----------------------------------------")
         await asyncio.sleep(900)
 
 async def log_interest_rates_coinm(leverage:float, notional_size:float):
@@ -84,32 +112,36 @@ async def log_interest_rates_coinm(leverage:float, notional_size:float):
 
             base_cur, quote_cur = global_vars.spot_symbol_to_currencies[spot_eq]
             print(futures_symb)
-            future_price = (get_mean_price_at_volume
-                            (global_vars.coinm_futures_symbol_to_bid_orderbook[futures_symb], notional_size))
-            spot_price = (get_mean_price_at_volume
-                          (global_vars.spot_symbol_to_ask_orderbook[spot_eq], notional_size))
+            future_bid_price = (get_mean_price_at_volume
+                                (global_vars.coinm_futures_symbol_to_bid_orderbook[futures_symb], notional_size))
+            future_ask_price = (get_mean_price_at_volume
+                                (global_vars.coinm_futures_symbol_to_ask_orderbook[futures_symb], notional_size))
+            spot_ask_price = (get_mean_price_at_volume
+                              (global_vars.spot_symbol_to_ask_orderbook[spot_eq], notional_size))
+            spot_bid_price = (get_mean_price_at_volume
+                              (global_vars.spot_symbol_to_bid_orderbook[spot_eq], notional_size))
             #get price datas end
 
             print("leverage", leverage)
-            print("spot price", spot_price)
-            print("future price", future_price)
+            print("spot price", spot_ask_price)
+            print("future price", future_bid_price)
 
             # calc time begin
             date_abbr = futures_symb.split("_")[1]
             year = int(date_abbr[:2]) + 2000
             month = int(date_abbr[2:4])
             day = int(date_abbr[4:])
-            futuretime = datetime.datetime(year, month, day)
-            now = datetime.datetime.now()
-            time_diff = abs(futuretime - now).days
+            futuretime = datetime.datetime(year, month, day).timestamp()*1000
+            now = datetime.datetime.now().timestamp()*1000
+            time_diff = (futuretime - now)/86400000
             # calc time end
 
             print("end time", futuretime)
             print("time difference", time_diff)
 
             #calc interest begin
-            numerator = (1-1/leverage)*(future_price - spot_price)
-            denominator = spot_price
+            numerator = (1-1/leverage)*(future_bid_price - spot_ask_price)
+            denominator = spot_ask_price
             coefficient = 365 / time_diff
             interest_rate = numerator / denominator * coefficient
             #calc interest end
@@ -119,16 +151,33 @@ async def log_interest_rates_coinm(leverage:float, notional_size:float):
             print("coefficient:", coefficient)
 
             text = f"{futures_symb} @{notional_size} {quote_cur} interest rate: {(interest_rate) * 100}"
-            await slack_client.chat_postMessage(channel=CHANNEL_ID,
+            if(interest_rate > 0.08):
+                await slack_client.chat_postMessage(channel=CHANNEL_ID,
                                                 text="leverage " + str(leverage) +
-                                                     "\nspot price " + str(spot_price) +
-                                                     "\nfuture price " + str(future_price)+
+                                                     "\nspot price " + str(spot_ask_price) +
+                                                     "\nfuture price " + str(future_bid_price)+
                                                      "\ndays till expiration " + str(time_diff)+
                                                      "\n"+text+
-                                                    "\n-----------------------------------------"
-                                                    )
+                                                    "\n-----------------------------------------")
             print(text)
             print("-----------------------------")
+
+            # calc interest begin
+            numerator = (1 - 1 / leverage) * (future_ask_price - spot_bid_price)
+            denominator = spot_bid_price
+            coefficient = 365 / time_diff
+            interest_rate = numerator / denominator * coefficient
+            # calc interest end
+
+            text = f"{futures_symb} @{notional_size} {quote_cur} interest rate: {(interest_rate) * 100}"
+            if (interest_rate < 0.05):
+                await slack_client.chat_postMessage(channel=CHANNEL_ID,
+                                                    text="leverage " + str(leverage) +
+                                                         "\nspot price " + str(spot_ask_price) +
+                                                         "\nfuture price " + str(future_bid_price) +
+                                                         "\ndays till expiration " + str(time_diff) +
+                                                         "\n" + text +
+                                                         "\n-----------------------------------------")
             #await slack_client.chat_postMessage(channel=CHANNEL_ID, text=text)
 
         await asyncio.sleep(900)

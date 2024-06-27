@@ -18,9 +18,9 @@ async def get_async_gather(leverage, spot_trade_symbols, usdm_trade_symbols, coi
     task3 = asyncio.create_task(rest_requests.get_future_orderbooks(coinm_trade_symbols, False))
     print(coinm_trade_symbols)
 
-    task4 = asyncio.create_task(utils.log_interest_rates_usdm(leverage=leverage, notional_size=5000))
+    task4 = asyncio.create_task(utils.log_interest_rates_usdm(leverage=leverage, notional_size=1000))
 
-    task5 = asyncio.create_task(utils.log_interest_rates_coinm(leverage=leverage, notional_size=5000))
+    task5 = asyncio.create_task(utils.log_interest_rates_coinm(leverage=leverage, notional_size=1000))
 
     await asyncio.gather(task1, task2, task3, task4, task5)
 
